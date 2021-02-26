@@ -19,7 +19,7 @@ rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARN
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def set_time(update: Update, context: CallbackContext):
     if len(context.args) != 1:
         when_error()
         return
-    arg: str = context.args[0].strip()
+    arg: str = context.args[0].strip().lower()
     if arg not in ('noon', 'day', 'night', 'midnight'):
         try:
             int(arg)
@@ -86,8 +86,15 @@ def log_filter(log: str) -> bool:
     return True
 
 
-IP_MATCH = re.compile(r"\[\/\d+\.\d+\.\d+\.\d+:\d+\]")
-HEAD_MATCH = re.compile(r"^\[\d+:\d+:\d+\] \[[^\]]+\]:\s+")
+IP_MATCH = re.compile(r"\[/\d+\.\d+\.\d+\.\d+:\d+]")
+HEAD_MATCH = re.compile(r"^\[\d+:\d+:\d+] \[[^]]+]:\s+")
+
+
+def log_mapper(log: str) -> str:
+    log = HEAD_MATCH.sub("", log)
+    log = IP_MATCH.sub("", log)
+    log = log.replace("[m", "")
+    return log
 
 
 def log_sender(context: telegram.ext.CallbackContext):
@@ -102,11 +109,7 @@ def log_sender(context: telegram.ext.CallbackContext):
         return
     text = ""
     for log in filter(log_filter, logs):
-        # some processing.
-        log = HEAD_MATCH.sub("", log)
-        log = IP_MATCH.sub("", log)
-        log = log.replace("[m", "")
-        text += log
+        text += log_mapper(log)
     length = len(text)
     if length < 3 or length > 1024:
         return
@@ -116,13 +119,9 @@ def log_sender(context: telegram.ext.CallbackContext):
 def main():
     rcon.connect()
     """Start the bot."""
-    # Create the Updater and pass it your bot's token.
     updater = Updater(environ["BOT_TOKEN"], base_url=TELEGRAM_BOT_BASE_URL)
-
-    # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("time", set_time))
@@ -130,12 +129,8 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(log_sender, 1)
 
-    # Start the Bot
     updater.start_polling()
 
-    # Run the bot until you press Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
     rcon.disconnect()
 

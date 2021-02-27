@@ -10,7 +10,7 @@ import telegram
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from mcrcon import MCRcon
+from mcrcon import MCRcon, MCRconException
 
 load_dotenv()
 TELEGRAM_BOT_BASE_URL = environ.get('TELEGRAM_BOT_BASE_URL', None)
@@ -126,8 +126,11 @@ def log_watch():
         sleep(0.5)
 
 
-def connect_rcon():
-    rcon.connect()
+def connect_rcon(context: CallbackContext):
+    try:
+        rcon.connect()
+    except MCRconException as e:
+        context.bot.send_message(CHAT, 'bot 无法连接 Minecraft 服务器: `{}`'.format(e), telegram.ParseMode.MARKDOWN_V2)
 
 
 def main():

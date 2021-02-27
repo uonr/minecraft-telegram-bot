@@ -126,6 +126,10 @@ def log_watch():
         sleep(0.5)
 
 
+def connect_rcon():
+    rcon.connect()
+
+
 def main():
     rcon.connect()
     """Start the bot."""
@@ -137,6 +141,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
+    dispatcher.job_queue.run_repeating(connect_rcon, interval=120, first=0)
     threading.Thread(target=log_watch).start()
 
     updater.start_polling()

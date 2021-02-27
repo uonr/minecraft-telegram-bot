@@ -1,9 +1,7 @@
 #!/usr/bin/python3
 import logging
 import re
-import threading
 from os import environ, SEEK_END
-from time import sleep
 from typing import TextIO
 
 import telegram
@@ -99,7 +97,11 @@ def log_mapper(log: str) -> str:
     return log
 
 
-def log_sender(bot: telegram.Bot, log_file: TextIO):
+def log_sender(context: telegram.ext.CallbackContext):
+    if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
+        context.bot_data['LOG_FILE'] = open(LOG_FILE_PATH)
+    log_file: TextIO = context.bot_data.get('LOG_FILE')
+
     # get new logs.
     logs = log_file.readlines()
     if len(logs) == 0:
@@ -111,14 +113,7 @@ def log_sender(bot: telegram.Bot, log_file: TextIO):
     length = len(text)
     if length < 3 or length > 1024:
         return
-    bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
-
-
-def log_watch(bot: telegram.Bot):
-    log_file = open(LOG_FILE_PATH)
-    while True:
-        log_sender(bot, log_file)
-        sleep(1)
+    context.bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
 
 
 def main():
@@ -132,7 +127,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    threading.Thread(target=log_watch, args=(updater.bot,), daemon=True)
+    dispatcher.job_queue.run_repeating(log_sender, 1)
 
     updater.start_polling()
 

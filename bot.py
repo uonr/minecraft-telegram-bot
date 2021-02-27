@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 import logging
 import re
+import threading
 from os import environ, SEEK_END
+from time import sleep
 from typing import TextIO
 
 import telegram
@@ -13,6 +15,7 @@ from mcrcon import MCRcon
 load_dotenv()
 TELEGRAM_BOT_BASE_URL = environ.get('TELEGRAM_BOT_BASE_URL', None)
 LOG_FILE_PATH = environ["LOG_FILE_PATH"]
+BOT_TOKEN = environ["BOT_TOKEN"]
 CHAT = int(environ["CHAT_ID"])
 RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
 rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
@@ -97,11 +100,7 @@ def log_mapper(log: str) -> str:
     return log
 
 
-def log_sender(context: telegram.ext.CallbackContext):
-    if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
-        context.bot_data['LOG_FILE'] = open(LOG_FILE_PATH)
-    log_file: TextIO = context.bot_data.get('LOG_FILE')
-
+def log_sender(bot: telegram.Bot, log_file: TextIO):
     # get new logs.
     logs = log_file.readlines()
     if len(logs) == 0:
@@ -113,14 +112,24 @@ def log_sender(context: telegram.ext.CallbackContext):
     length = len(text)
     if length < 3 or length > 1024:
         return
-    context.bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
-    context.job_queue.run_once(log_sender, 1)
+    bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
+
+
+def log_watch():
+    bot = telegram.Bot(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
+    log_file = open(LOG_FILE_PATH)
+    log_file.seek(0, SEEK_END)
+    while threading.main_thread().is_alive():
+        if log_file.closed:
+            log_file = open(LOG_FILE_PATH)
+        log_sender(bot, log_file)
+        sleep(0.5)
 
 
 def main():
     rcon.connect()
     """Start the bot."""
-    updater = Updater(environ["BOT_TOKEN"], base_url=TELEGRAM_BOT_BASE_URL)
+    updater = Updater(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
@@ -128,7 +137,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    dispatcher.job_queue.run_once(log_sender, 1)
+    threading.Thread(target=log_watch)
 
     updater.start_polling()
 

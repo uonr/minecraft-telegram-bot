@@ -114,6 +114,7 @@ def log_sender(context: telegram.ext.CallbackContext):
     if length < 3 or length > 1024:
         return
     context.bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
+    context.job_queue.run_once(log_sender, 1)
 
 
 def main():
@@ -127,7 +128,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    dispatcher.job_queue.run_repeating(log_sender, 1)
+    dispatcher.job_queue.run_once(log_sender, 1)
 
     updater.start_polling()
 

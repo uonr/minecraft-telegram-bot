@@ -137,7 +137,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    threading.Thread(target=log_watch)
+    threading.Thread(target=log_watch).start()
 
     updater.start_polling()
 

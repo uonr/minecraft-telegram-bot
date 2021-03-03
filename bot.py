@@ -43,7 +43,7 @@ def help_command(update: Update, context: CallbackContext) -> None:
 def set_time(update: Update, context: CallbackContext):
     error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
                   '[详细请看这里](https://minecraft-zh.gamepedia.com/昼夜更替)。'
-    
+
     def when_error():
         update.message.reply_text(error_reply, parse_mode=telegram.ParseMode.MARKDOWN_V2)
 
@@ -115,15 +115,17 @@ def log_sender(bot: telegram.Bot, log_file: TextIO):
     bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
 
 
-def log_watch():
-    bot = telegram.Bot(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
-    log_file = open(LOG_FILE_PATH)
-    log_file.seek(0, SEEK_END)
-    while threading.main_thread().is_alive():
-        if log_file.closed:
-            log_file = open(LOG_FILE_PATH)
-        log_sender(bot, log_file)
-        sleep(0.5)
+def log_watch(context: CallbackContext):
+    if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
+        log_file = open(LOG_FILE_PATH)
+        context.bot_data['LOG_FILE'] = log_file
+        log_file.seek(0, SEEK_END)
+    log_file: TextIO = context.bot_data['LOG_FILE']
+    try:
+        log_sender(context.bot, log_file)
+    except:
+        logger.exception()
+    context.job_queue.run_once(log_watch, when=1)
 
 
 def connect_rcon(context: CallbackContext):
@@ -145,7 +147,7 @@ def main():
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(connect_rcon, interval=120, first=0)
-    threading.Thread(target=log_watch).start()
+    dispatcher.job_queue.run_once(log_watch, when=0)
 
     updater.start_polling()
 

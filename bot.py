@@ -115,17 +115,14 @@ def log_sender(bot: telegram.Bot, log_file: TextIO):
 
 
 def log_watch(context: CallbackContext):
-    if random() < 0.1:
-        logger.debug("I'm alive")
+    context.job_queue.run_once(log_watch, when=1, name='log_watch')
     if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
         log_file = open(LOG_FILE_PATH)
         context.bot_data['LOG_FILE'] = log_file
         log_file.seek(0, SEEK_END)
+        return
     log_file: TextIO = context.bot_data['LOG_FILE']
-    try:
-        log_sender(context.bot, log_file)
-    finally:
-        context.job_queue.run_once(log_watch, when=1, name='log_watch')
+    log_sender(context.bot, log_file)
 
 
 def connect_rcon(context: CallbackContext):

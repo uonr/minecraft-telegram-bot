@@ -127,8 +127,8 @@ def log_watch(context: CallbackContext):
 
 def daemon(context: CallbackContext):
     if not context.job_queue.get_jobs_by_name('log_watch'):
-        context.bot.send_message(CHAT, '我炸了！')
-        context.job_queue.run_once(log_watch)
+        context.bot.send_message(CHAT, '我炸了！等20秒')
+        context.job_queue.run_once(log_watch, when=20)
     try:
         rcon.connect()
     except MCRconException as e:

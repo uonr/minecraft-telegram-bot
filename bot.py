@@ -3,6 +3,7 @@ import logging
 import re
 import threading
 from os import environ, SEEK_END
+from random import random
 from time import sleep
 from typing import TextIO
 
@@ -22,7 +23,7 @@ rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARN
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 
 logger = logging.getLogger(__name__)
@@ -103,19 +104,19 @@ def log_mapper(log: str) -> str:
 def log_sender(bot: telegram.Bot, log_file: TextIO):
     # get new logs.
     logs = log_file.readlines()
-    if len(logs) == 0:
-        log_file.seek(0, SEEK_END)
-        return
     text = ""
     for log in filter(log_filter, logs):
         text += log_mapper(log)
     length = len(text)
     if length < 3 or length > 1024:
+        log_file.seek(0, SEEK_END)
         return
     bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
 
 
 def log_watch(context: CallbackContext):
+    if random() < 0.1:
+        logger.debug("I'm alive")
     if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
         log_file = open(LOG_FILE_PATH)
         context.bot_data['LOG_FILE'] = log_file
@@ -123,9 +124,8 @@ def log_watch(context: CallbackContext):
     log_file: TextIO = context.bot_data['LOG_FILE']
     try:
         log_sender(context.bot, log_file)
-    except:
-        logger.exception()
-    context.job_queue.run_once(log_watch, when=1)
+    finally:
+        context.job_queue.run_once(log_watch, when=1, name='log_watch')
 
 
 def connect_rcon(context: CallbackContext):

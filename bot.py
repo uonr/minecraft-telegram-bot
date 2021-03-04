@@ -23,7 +23,7 @@ rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARN
 )
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,10 @@ def log_watch(context: CallbackContext):
     log_sender(context.bot, log_file)
 
 
-def connect_rcon(context: CallbackContext):
+def daemon(context: CallbackContext):
+    if not context.job_queue.get_jobs_by_name('log_watch'):
+        context.bot.send_message(CHAT, '我炸了！')
+        context.job_queue.run_once(log_watch)
     try:
         rcon.connect()
     except MCRconException as e:
@@ -143,7 +146,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    dispatcher.job_queue.run_repeating(connect_rcon, interval=120, first=0)
+    dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
     dispatcher.job_queue.run_once(log_watch, when=0)
 
     updater.start_polling()

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import logging
+import os
 import re
 import threading
 from os import environ, SEEK_END
@@ -109,19 +110,26 @@ def log_sender(bot: telegram.Bot, log_file: TextIO):
         text += log_mapper(log)
     length = len(text)
     if length < 3 or length > 1024:
-        log_file.close()  # log_watch seek to end
+        log_file.seek(0, SEEK_END)
         return
     bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
 
 
+LOG_FILE_KEY = 'LOG_FILE'
+LOG_FILE_INO_KEY = 'LOG_FILE_INO'
+
+
 def log_watch(context: CallbackContext):
-    context.job_queue.run_once(log_watch, when=1, name='log_watch')
-    if 'LOG_FILE' not in context.bot_data or context.bot_data['LOG_FILE'].closed:
+    log_stat = os.stat(LOG_FILE_PATH)
+    if context.bot_data.get(LOG_FILE_INO_KEY, None) != log_stat.st_ino \
+            or LOG_FILE_KEY not in context.bot_data \
+            or context.bot_data[LOG_FILE_KEY].closed:
         log_file = open(LOG_FILE_PATH)
-        context.bot_data['LOG_FILE'] = log_file
+        context.bot_data[LOG_FILE_KEY] = log_file
+        context.bot_data[LOG_FILE_INO_KEY] = log_stat.st_ino
         log_file.seek(0, SEEK_END)
         return
-    log_file: TextIO = context.bot_data['LOG_FILE']
+    log_file: TextIO = context.bot_data[LOG_FILE_KEY]
     log_sender(context.bot, log_file)
 
 
@@ -147,6 +155,7 @@ def main():
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
+    dispatcher.job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
     dispatcher.job_queue.run_once(log_watch, when=0)
 
     updater.start_polling()

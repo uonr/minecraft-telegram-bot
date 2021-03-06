@@ -2,16 +2,13 @@
 import logging
 import os
 import re
-import threading
 from os import environ, SEEK_END
-from random import random
-from time import sleep
 from typing import TextIO
 
 import telegram
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 from mcrcon import MCRcon, MCRconException
 
 load_dotenv()
@@ -32,12 +29,12 @@ logger = logging.getLogger(__name__)
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
-def start(update: Update, context: CallbackContext) -> None:
+def start(update: Update, _context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
     update.message.reply_text('Hi!')
 
 
-def help_command(update: Update, context: CallbackContext) -> None:
+def help_command(update: Update, _context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
     update.message.reply_text('我现在主要是在 Telegram 和 Minecraft 之间转发。')
 
@@ -62,7 +59,7 @@ def set_time(update: Update, context: CallbackContext):
     rcon.command("time set {}".format(arg))
 
 
-def forward_to_minecraft(update: Update, context: CallbackContext) -> None:
+def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     """Echo the user message."""
     message = update.message
     if not message:
@@ -133,10 +130,14 @@ def log_watch(context: CallbackContext):
     log_sender(context.bot, log_file)
 
 
+def spawn_log_watch(job_queue: JobQueue):
+    job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
+
+
 def daemon(context: CallbackContext):
     if not context.job_queue.get_jobs_by_name('log_watch'):
         context.bot.send_message(CHAT, '我炸了！等20秒')
-        context.job_queue.run_once(log_watch, when=20)
+        context.job_queue.run_once(lambda ctx: spawn_log_watch(ctx.job_queue), when=20)
     try:
         rcon.connect()
     except MCRconException as e:
@@ -155,8 +156,7 @@ def main():
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
-    dispatcher.job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
-    dispatcher.job_queue.run_once(log_watch, when=0)
+    spawn_log_watch(dispatcher.job_queue)
 
     updater.start_polling()
 

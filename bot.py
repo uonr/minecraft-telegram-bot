@@ -140,8 +140,8 @@ def daemon(context: CallbackContext):
         context.job_queue.run_once(lambda ctx: spawn_log_watch(ctx.job_queue), when=20)
     try:
         rcon.connect()
-    except MCRconException as e:
-        context.bot.send_message(CHAT, 'bot 无法连接 Minecraft 服务器: `{}`'.format(e), telegram.ParseMode.MARKDOWN_V2)
+    except (MCRconException, ConnectionError) as e:
+        context.bot.send_message(CHAT, f'我炸了！等20秒 (`{e}`)', telegram.ParseMode.MARKDOWN_V2)
 
 
 def main():

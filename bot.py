@@ -77,6 +77,7 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
 def log_filter(log: str) -> bool:
     pass_list = [
         'has made the advancement',
+        '[Async Chat Thread',
     ]
     for s in pass_list:
         if log.find(s) != -1:
@@ -89,7 +90,6 @@ def log_filter(log: str) -> bool:
         'issued server command: /help',
         'issued server command: /w',
         'issued server command: /msg',
-        '[Async Chat Thread',
         'lost connection',
         '[Telegram]',
     ]

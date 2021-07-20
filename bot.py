@@ -169,6 +169,17 @@ def edit_group_name(context: CallbackContext):
         context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)', timeout=200)
     else:
         context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)', timeout=200)
+def status_update(update: Update, context: CallbackContext):
+    new_chat_title = update.message.new_chat_title
+    if not new_chat_title:
+        return
+    key = 'chat_title_status_id'
+    if key not in context.chat_data:
+        context.chat_data[key] = update.message.message_id
+        return
+    prev_id = context.chat_data[key]
+    context.bot.delete_message(CHAT, prev_id)
+    context.chat_data[key] = update.message.message_id
 
 def main():
     rcon.connect()
@@ -181,6 +192,7 @@ def main():
     dispatcher.add_handler(CommandHandler("list", list_players))
     dispatcher.add_handler(CommandHandler("time", set_time))
 
+    dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)

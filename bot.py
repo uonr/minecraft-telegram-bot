@@ -92,6 +92,8 @@ def log_filter(log: str) -> bool:
         'issued server command: /help',
         'issued server command: /w',
         'issued server command: /msg',
+        ' left the game',
+        ' logged in with entity id',
         'lost connection',
         '[Telegram]',
     ]

@@ -38,6 +38,8 @@ def help_command(update: Update, _context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
     update.message.reply_text('我现在主要是在 Telegram 和 Minecraft 之间转发。')
 
+def list_players(update: Update, context: CallbackContext):
+    rcon.command('list')
 
 def set_time(update: Update, context: CallbackContext):
     error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
@@ -163,6 +165,7 @@ def main():
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("time", set_time))
+    dispatcher.add_handler(CommandHandler("list", list_players))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)

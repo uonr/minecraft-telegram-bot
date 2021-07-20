@@ -155,6 +155,18 @@ def daemon(context: CallbackContext):
     except (MCRconException, ConnectionError) as e:
         context.bot.send_message(CHAT, f'我炸了！等20秒 (`{e}`)', telegram.ParseMode.MARKDOWN_V2)
 
+def edit_group_name(context: CallbackContext):
+    online = rcon.command('list')
+    if not online:
+        return
+    matched = re.search(r'\d+', online)
+    if not matched:
+        return
+    online_counter = matched.group(0)
+    if online_counter == '0':
+        context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)')
+    else:
+        context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)')
 
 def main():
     rcon.connect()
@@ -168,6 +180,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
+    dispatcher.job_queue.run_repeating(edit_group_name, interval=5, first=0)
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
     spawn_log_watch(dispatcher.job_queue)
 

@@ -166,9 +166,9 @@ def edit_group_name(context: CallbackContext):
         return
     online_counter = matched.group(0)
     if online_counter == '0':
-        context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)')
+        context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)', timeout=200)
     else:
-        context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)')
+        context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)', timeout=200)
 
 def main():
     rcon.connect()
@@ -182,7 +182,7 @@ def main():
     dispatcher.add_handler(CommandHandler("time", set_time))
 
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    dispatcher.job_queue.run_repeating(edit_group_name, interval=5, first=0)
+    dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
     spawn_log_watch(dispatcher.job_queue)
 

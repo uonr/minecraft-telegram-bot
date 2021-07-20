@@ -75,18 +75,28 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
 
 
 def log_filter(log: str) -> bool:
-    if log.find("has made the advancement") != -1:
-        return True
-    elif log.find("[Async Chat Thread") != -1:
-        return True
-    elif log.find("] [Server thread/INFO]") == -1:
+    pass_list = [
+        'has made the advancement',
+    ]
+    for s in pass_list:
+        if log.find(s) != -1:
+            return True
+    if log.find("] [Server thread/INFO]") == -1:
         return False
-    elif log.find("lost connection") != -1:
-        return False
-    elif log.find("[Telegram]") != -1:
-        return False
+    skip_list = [
+        'issued server command: /me',
+        'issued server command: /tell',
+        'issued server command: /help',
+        'issued server command: /w',
+        'issued server command: /msg',
+        '[Async Chat Thread',
+        'lost connection',
+        '[Telegram]',
+    ]
+    for s in skip_list:
+        if log.find(s) != -1:
+            return False
     return True
-
 
 IP_MATCH = re.compile(r"\[/\d+\.\d+\.\d+\.\d+:\d+]")
 HEAD_MATCH = re.compile(r"^\[\d+:\d+:\d+] \[[^]]+]:\s+")

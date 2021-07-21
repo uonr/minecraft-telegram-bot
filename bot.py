@@ -16,6 +16,7 @@ TELEGRAM_BOT_BASE_URL = environ.get('TELEGRAM_BOT_BASE_URL', None)
 LOG_FILE_PATH = environ["LOG_FILE_PATH"]
 BOT_TOKEN = environ["BOT_TOKEN"]
 CHAT = int(environ["CHAT_ID"])
+TITLE = environ.get('CHAT_TITLE', '')
 RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
 
 def get_rcon():
@@ -159,7 +160,7 @@ def edit_group_name(context: CallbackContext):
         with get_rcon() as rcon:
             online = rcon.command('list')
     except:
-        context.bot.set_chat_title(CHAT, f'炸魚禁止 (服务器下线)', timeout=200)
+        context.bot.set_chat_title(CHAT, f'{TITLE} (服务器下线)', timeout=200)
         return
     if not online:
         return
@@ -168,9 +169,9 @@ def edit_group_name(context: CallbackContext):
         return
     online_counter = matched.group(0)
     if online_counter == '0':
-        context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)', timeout=200)
+        context.bot.set_chat_title(CHAT, f'{TITLE} (没人玩)', timeout=200)
     else:
-        context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)', timeout=200)
+        context.bot.set_chat_title(CHAT, f'{TITLE} ({online_counter}人游戏中)', timeout=200)
 
 def status_update(update: Update, context: CallbackContext):
     new_chat_title = update.message.new_chat_title
@@ -199,7 +200,8 @@ def main():
 
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
+    if TITLE != "":
+        dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     spawn_log_watch(dispatcher.job_queue)
 
     updater.start_polling()

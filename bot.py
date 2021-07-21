@@ -17,7 +17,9 @@ LOG_FILE_PATH = environ["LOG_FILE_PATH"]
 BOT_TOKEN = environ["BOT_TOKEN"]
 CHAT = int(environ["CHAT_ID"])
 RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
-rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
+
+def get_rcon():
+    return MCRcon("127.0.0.1", RCON_PASSWORD)
 
 # Enable logging
 logging.basicConfig(
@@ -39,7 +41,8 @@ def help_command(update: Update, _context: CallbackContext) -> None:
     update.message.reply_text('我现在主要是在 Telegram 和 Minecraft 之间转发。')
 
 def list_players(update: Update, context: CallbackContext):
-    context.bot.send_message(CHAT, rcon.command('list'))
+    with get_rcon() as rcon:
+        context.bot.send_message(CHAT, rcon.command('list'))
 
 def set_time(update: Update, context: CallbackContext):
     error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
@@ -58,7 +61,8 @@ def set_time(update: Update, context: CallbackContext):
         except ValueError:
             when_error()
             return
-    rcon.command("time set {}".format(arg))
+    with get_rcon() as rcon:
+        rcon.command("time set {}".format(arg))
 
 
 def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
@@ -73,7 +77,8 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     if sender.last_name:
         name += ' ' + sender.last_name
 
-    rcon.command("say [Telegram][{}] {}".format(name, message.text))
+    with get_rcon() as rcon:
+        rcon.command("say [Telegram][{}] {}".format(name, message.text))
 
 
 def log_filter(log: str) -> bool:
@@ -147,18 +152,13 @@ def log_watch(context: CallbackContext):
 def spawn_log_watch(job_queue: JobQueue):
     job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
 
-
-def daemon(context: CallbackContext):
-    if not context.job_queue.get_jobs_by_name('log_watch'):
-        context.bot.send_message(CHAT, '我炸了！等20秒')
-        context.job_queue.run_once(lambda ctx: spawn_log_watch(ctx.job_queue), when=20)
-    try:
-        rcon.connect()
-    except (MCRconException, ConnectionError) as e:
-        context.bot.send_message(CHAT, f'我炸了！等20秒 (`{e}`)', telegram.ParseMode.MARKDOWN_V2)
-
 def edit_group_name(context: CallbackContext):
-    online = rcon.command('list')
+    try: 
+        with get_rcon() as rcon:
+            online = rcon.command('list')
+    except:
+        context.bot.set_chat_title(CHAT, f'炸魚禁止 (服务器下线)', timeout=200)
+        return
     if not online:
         return
     matched = re.search(r'\d+', online)
@@ -169,6 +169,7 @@ def edit_group_name(context: CallbackContext):
         context.bot.set_chat_title(CHAT, f'炸魚禁止 (没人玩)', timeout=200)
     else:
         context.bot.set_chat_title(CHAT, f'炸魚禁止 ({online_counter}人游戏中)', timeout=200)
+
 def status_update(update: Update, context: CallbackContext):
     new_chat_title = update.message.new_chat_title
     if not new_chat_title:
@@ -182,7 +183,6 @@ def status_update(update: Update, context: CallbackContext):
     context.chat_data[key] = update.message.message_id
 
 def main():
-    rcon.connect()
     """Start the bot."""
     updater = Updater(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
     dispatcher = updater.dispatcher
@@ -195,13 +195,11 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
-    dispatcher.job_queue.run_repeating(daemon, interval=60*3, first=0)
     spawn_log_watch(dispatcher.job_queue)
 
     updater.start_polling()
 
     updater.idle()
-    rcon.disconnect()
 
 
 if __name__ == '__main__':

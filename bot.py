@@ -85,6 +85,7 @@ def log_filter(log: str) -> bool:
     pass_list = [
         'has made the advancement',
         '[Async Chat Thread',
+        'WARN]',
     ]
     for s in pass_list:
         if log.find(s) != -1:
@@ -101,6 +102,7 @@ def log_filter(log: str) -> bool:
         ' logged in with entity id',
         'lost connection',
         '[Telegram]',
+        '[Hibernate]',
     ]
     for s in skip_list:
         if log.find(s) != -1:

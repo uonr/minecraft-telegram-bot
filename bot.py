@@ -179,7 +179,10 @@ def status_update(update: Update, context: CallbackContext):
         context.chat_data[key] = update.message.message_id
         return
     prev_id = context.chat_data[key]
-    context.bot.delete_message(CHAT, prev_id)
+    try:
+        context.bot.delete_message(CHAT, prev_id)
+    except telegram.error.BadRequest:
+        pass
     context.chat_data[key] = update.message.message_id
 
 def main():

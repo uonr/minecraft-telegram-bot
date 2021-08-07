@@ -19,8 +19,8 @@ CHAT = int(environ["CHAT_ID"])
 TITLE = environ.get('CHAT_TITLE', '')
 RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
 
-def get_rcon():
-    return MCRcon("127.0.0.1", RCON_PASSWORD)
+rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
+rcon.connect()
 
 # Enable logging
 logging.basicConfig(
@@ -42,8 +42,7 @@ def help_command(update: Update, _context: CallbackContext) -> None:
     update.message.reply_text('我现在主要是在 Telegram 和 Minecraft 之间转发。')
 
 def list_players(update: Update, context: CallbackContext):
-    with get_rcon() as rcon:
-        context.bot.send_message(CHAT, rcon.command('list'))
+    context.bot.send_message(CHAT, rcon.command('list'))
 
 def set_time(update: Update, context: CallbackContext):
     error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
@@ -62,8 +61,7 @@ def set_time(update: Update, context: CallbackContext):
         except ValueError:
             when_error()
             return
-    with get_rcon() as rcon:
-        rcon.command("time set {}".format(arg))
+    rcon.command("time set {}".format(arg))
 
 
 def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
@@ -78,8 +76,7 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     if sender.last_name:
         name += ' ' + sender.last_name
 
-    with get_rcon() as rcon:
-        rcon.command("say [Telegram][{}] {}".format(name, message.text))
+    rcon.command("say [Telegram][{}] {}".format(name, message.text))
 
 
 def log_filter(log: str) -> bool:
@@ -153,12 +150,12 @@ def log_watch(context: CallbackContext):
 
 
 def spawn_log_watch(job_queue: JobQueue):
+    rcon.connect()
     job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
 
 def edit_group_name(context: CallbackContext):
     try: 
-        with get_rcon() as rcon:
-            online = rcon.command('list')
+        online = rcon.command('list')
     except:
         context.bot.set_chat_title(CHAT, f'{TITLE} (服务器下线)', timeout=200)
         return

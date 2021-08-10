@@ -103,6 +103,7 @@ def log_filter(log: str) -> bool:
         ' left the game',
         ' logged in with entity id',
         'lost connection',
+        "Can't keep up! Is the server overloaded? ",
         '[Telegram]',
         '[Hibernate]',
     ]

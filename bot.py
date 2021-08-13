@@ -7,7 +7,7 @@ from typing import TextIO
 
 import telegram
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, Message, ChatMember
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 from mcrcon import MCRcon, MCRconException
 
@@ -21,11 +21,6 @@ RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
 
 rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
 
-def command(s: str):
-    rcon.connect()
-    result = rcon.command(s)
-    rcon.disconnect()
-    return result
 
 # Enable logging
 logging.basicConfig(
@@ -34,13 +29,38 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def command(s: str):
+    rcon.connect()
+    result = rcon.command(s)
+    rcon.disconnect()
+    return result
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
-def start(update: Update, _context: CallbackContext) -> None:
-    """Send a message when the command /start is issued."""
+def start(update: Update, context: CallbackContext) -> None:
+    message = update.message
+    assert isinstance(message, Message)
+    user_id = message.from_user.id
+    for admin in message.chat.get_administrators():
+        if isinstance(admin, ChatMember) and admin.user.id == user_id:
+            message.reply_text('Starting server')
+            os.system('systemctl start minecraft-server')
+            return
     update.message.reply_text('Hi!')
 
+def stop(update: Update, context: CallbackContext) -> None:
+    message = update.message
+    assert isinstance(message, Message)
+    user_id = message.from_user.id
+    for admin in message.chat.get_administrators():
+        if isinstance(admin, ChatMember) and admin.user.id == user_id:
+            if context.bot_data.get('online_counter') == '0':
+                message.reply_text('Stopping server')
+                os.system('systemctl stop minecraft-server')
+            else:
+                message.reply_text('有人在游戏中')
+            return
+    message.reply_text('你不是管理员')
 
 def help_command(update: Update, _context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
@@ -87,12 +107,12 @@ def log_filter(log: str) -> bool:
     pass_list = [
         'has made the advancement',
         '[Async Chat Thread',
-        'WARN]',
     ]
+    found = lambda s: log.find(s) != -1
     for s in pass_list:
-        if log.find(s) != -1:
+        if found(s):
             return True
-    if log.find("] [Server thread/INFO]") == -1:
+    if not found("] [Server thread/INFO]"):
         return False
     skip_list = [
         'issued server command: /me',
@@ -103,7 +123,8 @@ def log_filter(log: str) -> bool:
         ' left the game',
         ' logged in with entity id',
         'lost connection',
-        "Can't keep up! Is the server overloaded? ",
+        "Can't keep up! Is the server overloaded?",
+        'moved too quickly',
         '[Telegram]',
         '[Hibernate]',
     ]
@@ -169,6 +190,7 @@ def edit_group_name(context: CallbackContext):
     if not matched:
         return
     online_counter = matched.group(0)
+    context.bot_data['online_counter'] = online_counter
     if online_counter == '0':
         context.bot.set_chat_title(CHAT, f'{TITLE} (没人玩)', timeout=200)
     else:
@@ -195,6 +217,7 @@ def main():
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("stop", stop))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("list", list_players))
     dispatcher.add_handler(CommandHandler("time", set_time))

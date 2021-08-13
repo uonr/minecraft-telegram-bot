@@ -13,4 +13,5 @@ let
 in
 mkShell {
   buildInputs = [ python ];
+  packages = [ python ];
 }

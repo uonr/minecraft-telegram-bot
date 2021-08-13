@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import random
 from os import environ, SEEK_END
 from typing import TextIO
 
@@ -178,6 +179,12 @@ def log_watch(context: CallbackContext):
 def spawn_log_watch(job_queue: JobQueue):
     job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
 
+sad_kaomoji = [
+    '(。_。)',
+    '(。﹏。)',
+    '(；▽；)',
+    '(´•̥ ̯ •̥`)',
+];
 def edit_group_name(context: CallbackContext):
     try: 
         online = command('list')
@@ -190,9 +197,15 @@ def edit_group_name(context: CallbackContext):
     if not matched:
         return
     online_counter = matched.group(0)
+    if online_counter == context.bot_data.get('online_counter'):
+        return
     context.bot_data['online_counter'] = online_counter
     if online_counter == '0':
-        context.bot.set_chat_title(CHAT, f'{TITLE} (没人玩)', timeout=200)
+        sad = '(没人玩)'
+        if random.random() < 0.4:
+            random.shuffle(sad_kaomoji)
+            sad = sad_kaomoji[0]
+        context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip(), timeout=200)
     else:
         context.bot.set_chat_title(CHAT, f'{TITLE} ({online_counter}人游戏中)', timeout=200)
 

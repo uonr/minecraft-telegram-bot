@@ -197,7 +197,7 @@ def edit_group_name(context: CallbackContext):
     if not matched:
         return
     online_counter = matched.group(0)
-    if online_counter == context.bot_data.get('online_counter'):
+    if online_counter == context.bot_data.get('online_counter', '-1'):
         return
     context.bot_data['online_counter'] = online_counter
     if online_counter == '0':

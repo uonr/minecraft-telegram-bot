@@ -1,12 +1,13 @@
 {
-  description = "Minecraft Telegram Bot";
+  description = "bridge between in telegram and minecraft";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     utils.url = "github:numtide/flake-utils";
   };
-  outputs = { self, nixpkgs, utils }: (utils.lib.eachSystem [ "x86_64-linux" ] (system:
-  let
+  outputs = { self, nixpkgs, utils }: utils.lib.eachDefaultSystem (system: 
+  let 
     pkgs = nixpkgs.legacyPackages.${system};
+
     mcrcon = pkgs.python3Packages.buildPythonPackage rec {
       pname = "mcrcon";
       version = "0.7.0";
@@ -15,25 +16,58 @@
         sha256 = "wvHK8kZ+KD4MzSQ28c4h8EJCsDxfr7OGDjkk12SpENQ=";
       };
     };
-    pythonEnv = pkgs.python3.withPackages(packages: with packages; [
-      python-telegram-bot python-dotenv mcrcon
-    ]);
     minecraft-telegram-bot = with pkgs.python3Packages; buildPythonPackage {
       pname = "minecraft-telegram-bot";
       version = "1.0";
       propagatedBuildInputs = [ python-telegram-bot python-dotenv mcrcon ];
       src = ./.;
     };
+    python = pkgs.python3.withPackages(ps: [ minecraft-telegram-bot ]);
   in {
+    overlay = prev: self: {
+      inherit minecraft-telegram-bot;
+    };
     packages = {
-      pythonEnv = pythonEnv;
-      minecraft-telegram-bot =  minecraft-telegram-bot;
+      inherit minecraft-telegram-bot;
     };
     defaultApp = utils.lib.mkApp {
       drv = minecraft-telegram-bot;
       exePath = "/bin/bot.py";
     };
-    defaultPackage = minecraft-telegram-bot; # If you want to juist build the environment
-    devShell = pythonEnv.env; # We need .env in order to use `nix develop`
-  }));
+    nixosModule = { config, lib, ... }:
+    with lib;
+    let 
+      cfg = config.services.minecraft-telegram-bot;
+    in {
+      options = {
+        services.minecraft-telegram-bot = {
+          enable = mkEnableOption "enable minecraft telegram bot service";
+          logFilePath = mkOption { type = types.str; };
+          chatTitle = mkOption { type = types.str; };
+          environmentFile = mkOption { type = types.str; };
+        };
+      };
+      config = mkIf cfg.enable {
+        systemd.services.minecraft-telegram-bot = {
+          enable = true;
+          requires = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "simple";
+            User = "root";
+            Group = "root";
+            MemoryMax = "128M";
+            EnvironmentFile = cfg.environmentFile;
+          };
+          environment = {
+            CHAT_TITLE = cfg.chatTitle;
+            LOG_FILE_PATH = cfg.logFilePath;
+          };
+          script = "${minecraft-telegram-bot}/bin/bot.py";
+        };
+      };
+    };
+    defaultPackage = minecraft-telegram-bot;
+    devShell = python.env;
+  });
 }

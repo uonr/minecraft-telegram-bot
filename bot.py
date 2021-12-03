@@ -128,6 +128,7 @@ def log_filter(log: str) -> bool:
         'moved too quickly',
         '[Telegram]',
         '[Hibernate]',
+        'Skipping update ',
     ]
     for s in skip_list:
         if log.find(s) != -1:

@@ -58,6 +58,8 @@
             Group = "root";
             MemoryMax = "128M";
             EnvironmentFile = cfg.environmentFile;
+            Restart = "always";
+            RestartSec = "3s";
           };
           environment = {
             CHAT_TITLE = cfg.chatTitle;

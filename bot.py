@@ -240,11 +240,14 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
     if TITLE != "":
         dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
-    spawn_log_watch(dispatcher.job_queue)
+    try:
+        spawn_log_watch(dispatcher.job_queue)
 
-    updater.start_polling()
+        updater.start_polling()
 
-    updater.idle()
+        updater.idle()
+    finally:
+        updater.bot(CHAT, f'{TITLE} (关机)', timeout=200)
 
 
 if __name__ == '__main__':

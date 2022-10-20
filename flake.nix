@@ -50,7 +50,8 @@
       config = mkIf cfg.enable {
         systemd.services.minecraft-telegram-bot = {
           enable = true;
-          requires = [ "network.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
@@ -66,6 +67,7 @@
             LOG_FILE_PATH = cfg.logFilePath;
           };
           script = "${minecraft-telegram-bot}/bin/bot.py";
+          preStop = "${minecraft-telegram-bot}/bin/bot.py stopped";
         };
       };
     };

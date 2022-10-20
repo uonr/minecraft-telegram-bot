@@ -1,14 +1,16 @@
 #!/usr/bin/python3
 import logging
 import os
+import sys
 import re
 import random
+import signal
 from os import environ, SEEK_END
 from typing import TextIO
 
 import telegram
 from dotenv import load_dotenv
-from telegram import Update, Message, ChatMember
+from telegram import Bot, Update, Message, ChatMember
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 from mcrcon import MCRcon, MCRconException
 
@@ -225,6 +227,10 @@ def status_update(update: Update, context: CallbackContext):
         pass
     context.chat_data[key] = update.message.message_id
 
+def shutdown(bot: Bot):
+    bot(CHAT, f'{TITLE} (关机)', timeout=200)
+
+
 def main():
     """Start the bot."""
     updater = Updater(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
@@ -238,16 +244,17 @@ def main():
 
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
-    if TITLE != "":
-        dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
+    signal.signal(signal.SIGTERM, lambda _sig, _frame: sys.exit(0))
     try:
+        if TITLE != "":
+            dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
         spawn_log_watch(dispatcher.job_queue)
 
         updater.start_polling()
 
         updater.idle()
     finally:
-        updater.bot(CHAT, f'{TITLE} (关机)', timeout=200)
+        shutdown(updater.bot)
 
 
 if __name__ == '__main__':

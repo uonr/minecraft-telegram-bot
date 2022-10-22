@@ -188,6 +188,11 @@ sad_kaomoji = [
     '(´•̥ ̯ •̥`)',
 ];
 
+def cancel_shutdown(update: Update, context: CallbackContext):
+    os.system(f'shutdown -c')
+    context.bot.send_message(CHAT, "关机已取消")
+
+
 def auto_shutdown(context: CallbackContext):
     LAST_ONLINE = 'LAST_ONLINE'
     last_online = context.bot_data.get(LAST_ONLINE, 1)
@@ -258,7 +263,7 @@ def main():
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("list", list_players))
     dispatcher.add_handler(CommandHandler("time", set_time))
-    dispatcher.add_handler(CommandHandler("cancel_shutdown", set_time))
+    dispatcher.add_handler(CommandHandler("cancel_shutdown", cancel_shutdown))
 
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))

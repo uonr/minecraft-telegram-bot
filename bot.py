@@ -102,7 +102,11 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     name = sender.first_name
     if sender.last_name:
         name += ' ' + sender.last_name
-    command("say [Telegram][{}] {}".format(name, message.text))
+    try:
+        command("say [Telegram][{}] {}".format(name, message.text))
+    except Exception as e:
+        logging.warn("Failed to forward to minecraft: ", e)
+
 
 
 def log_filter(log: str) -> bool:
@@ -214,7 +218,6 @@ def auto_shutdown(context: CallbackContext):
 
 
 def edit_group_name(context: CallbackContext):
-
     try: 
         online = command('list')
     except:

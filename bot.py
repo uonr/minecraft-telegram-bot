@@ -198,23 +198,31 @@ def cancel_shutdown(update: Update, context: CallbackContext):
 
 
 def auto_shutdown(context: CallbackContext):
-    LAST_ONLINE = 'LAST_ONLINE'
-    last_online = context.bot_data.get(LAST_ONLINE, 1)
-    wait_time_min = 5;
-    if last_online == 0:
-        context.bot.send_message(CHAT, f"过久没人在线，{wait_time_min}分钟后关闭服务器，若要游玩请重新打开。\n发送 /cancel_shutdown@{context.bot.username} 取消关机。")
-        os.system(f'shutdown -P +{wait_time_min}')
+    DEATH_COUNT = 'DEATH_COUNT'
+    death_count = context.bot_data.get(DEATH_COUNT, 0)
+    wait_time_min = 5
 
     try: 
         online = command('list')
+        matched = re.search(r'\d+', online) 
+        current_online = int(matched.group(0))
     except:
-        context.bot_data[LAST_ONLINE] = 0
+        # not online, no need to count
+        context.bot_data[DEATH_COUNT] = 0
         return
-    if not online:
-        context.bot_data[LAST_ONLINE] = 0
-        return
-    matched = re.search(r'\d+', online) 
-    context.bot_data[LAST_ONLINE] = int(matched.group(0))
+
+    if current_online > 0:
+        # someboy is playing, count from 0.
+        death_count = 0
+    else:
+        # nobody playing.
+        death_count += 1
+
+    context.bot_data[DEATH_COUNT] = death_count
+
+    if death_count >= 60:
+        context.bot.send_message(CHAT, f"过久没人在线，{wait_time_min}分钟后关闭服务器，若要游玩请重新打开。\n发送 /cancel_shutdown@{context.bot.username} 取消关机。")
+        os.system(f'shutdown -P +{wait_time_min}')
 
 
 def edit_group_name(context: CallbackContext):
@@ -271,7 +279,7 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
 
-    dispatcher.job_queue.run_repeating(auto_shutdown, interval=1 * 60 * 60, first=0)
+    dispatcher.job_queue.run_repeating(auto_shutdown, interval=60, first=0)
     if TITLE != "":
         dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     spawn_log_watch(dispatcher.job_queue)

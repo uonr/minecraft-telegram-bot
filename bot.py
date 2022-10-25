@@ -205,13 +205,13 @@ def auto_shutdown(context: CallbackContext):
     try: 
         online = command('list')
         matched = re.search(r'\d+', online) 
-        last_online = int(matched.group(0))
+        current_online = int(matched.group(0))
     except:
         # not online, no need to count
         context.bot_data[DEATH_COUNT] = 0
         return
 
-    if last_online > 0:
+    if current_online > 0:
         # someboy is playing, count from 0.
         death_count = 0
     else:

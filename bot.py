@@ -279,7 +279,7 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
 
-    dispatcher.job_queue.run_repeating(auto_shutdown, interval= 60, first=0)
+    dispatcher.job_queue.run_repeating(auto_shutdown, interval=60, first=0)
     if TITLE != "":
         dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     spawn_log_watch(dispatcher.job_queue)

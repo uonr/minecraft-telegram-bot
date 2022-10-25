@@ -32,10 +32,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def command(s: str):
-    rcon.connect()
-    result = rcon.command(s)
-    rcon.disconnect()
-    return result
+    try:
+        rcon.connect()
+        result = rcon.command(s)
+        rcon.disconnect()
+        return result
+    except:
+        # let it crash
+        logging.error("Fail to execute rcon command")
+        sys.exit(1)
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
@@ -102,10 +107,7 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     name = sender.first_name
     if sender.last_name:
         name += ' ' + sender.last_name
-    try:
-        command("say [Telegram][{}] {}".format(name, message.text))
-    except Exception as e:
-        logging.warn("Failed to forward to minecraft: ", e)
+    command("say [Telegram][{}] {}".format(name, message.text))
 
 
 
@@ -202,14 +204,9 @@ def auto_shutdown(context: CallbackContext):
     death_count = context.bot_data.get(DEATH_COUNT, 0)
     wait_time_min = 5
 
-    try: 
-        online = command('list')
-        matched = re.search(r'\d+', online) 
-        current_online = int(matched.group(0))
-    except:
-        # not online, no need to count
-        context.bot_data[DEATH_COUNT] = 0
-        return
+    online = command('list')
+    matched = re.search(r'\d+', online) 
+    current_online = int(matched.group(0))
 
     if current_online > 0:
         # someboy is playing, reset count.

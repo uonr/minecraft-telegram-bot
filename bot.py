@@ -218,11 +218,12 @@ def auto_shutdown(context: CallbackContext):
         # nobody playing.
         death_count += 1
 
-    context.bot_data[DEATH_COUNT] = death_count
-
     if death_count >= 60:
+        death_count = 0 # back to 0
         context.bot.send_message(CHAT, f"过久没人在线，{wait_time_min}分钟后关闭服务器，若要游玩请重新打开。\n发送 /cancel_shutdown@{context.bot.username} 取消关机。")
         os.system(f'shutdown -P +{wait_time_min}')
+
+    context.bot_data[DEATH_COUNT] = death_count
 
 
 def edit_group_name(context: CallbackContext):

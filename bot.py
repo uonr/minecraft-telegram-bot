@@ -37,10 +37,10 @@ def command(s: str):
         result = rcon.command(s)
         rcon.disconnect()
         return result
-    except:
+    except Exception as e:
         # let it crash
-        logging.error("Fail to execute rcon command")
-        sys.exit(1)
+        logging.error("Fail to execute rcon command", e)
+        os._exit(1)
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.

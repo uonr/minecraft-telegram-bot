@@ -282,7 +282,7 @@ def main():
         dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
     spawn_log_watch(dispatcher.job_queue)
 
-    updater.start_polling()
+    updater.start_polling(drop_pending_updates=True)
 
     updater.idle()
 

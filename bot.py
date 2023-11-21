@@ -1,103 +1,114 @@
-#!/usr/bin/env python3
-import logging
+#!/usr/bin/env python
+from io import SEEK_END
 import os
-import sys
 import re
+import logging
 import random
-from os import environ, SEEK_END
+from asyncio import sleep
 from typing import TextIO
 
-import telegram
 from dotenv import load_dotenv
-from telegram import Bot, Update, Message, ChatMember
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
-from mcrcon import MCRcon, MCRconException
+from aiomcrcon import Client as RconClient
+from telegram import ForceReply, Update, Bot, error
+from telegram.constants import ParseMode
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, JobQueue, filters
 
 load_dotenv()
-TELEGRAM_BOT_BASE_URL = environ.get('TELEGRAM_BOT_BASE_URL', None)
-LOG_FILE_PATH = environ["LOG_FILE_PATH"]
-BOT_TOKEN = environ["BOT_TOKEN"]
-CHAT = int(environ["CHAT_ID"])
-TITLE = environ.get('CHAT_TITLE', '')
-RCON_PASSWORD = environ.get("RCON_PASSWORD", "")
 
-rcon = MCRcon("127.0.0.1", RCON_PASSWORD)
-
+TELEGRAM_BOT_BASE_URL = os.environ.get('TELEGRAM_BOT_BASE_URL', None)
+LOG_FILE_PATH = os.environ["LOG_FILE_PATH"]
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+CHAT = int(os.environ["CHAT_ID"])
+TITLE = os.environ.get('CHAT_TITLE', '')
+RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "")
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARN
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.WARN
 )
+# set higher logging level for httpx to avoid all GET and POST requests being logged
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-def command(s: str):
-    try:
-        rcon.connect()
-        result = rcon.command(s)
-        rcon.disconnect()
-        return result
-    except Exception as e:
-        # let it crash
-        logging.error("Fail to execute rcon command", e)
-        os._exit(1)
+async def command(cmd: str):
+    rcon = RconClient("127.0.0.1", 25575, RCON_PASSWORD)
+    await rcon.connect()
+    resp, _ = await rcon.send_cmd(cmd)
+    await rcon.close()
+    return resp
 
 # Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
-def start(update: Update, context: CallbackContext) -> None:
-    message = update.message
-    assert isinstance(message, Message)
-    user_id = message.from_user.id
-    for admin in message.chat.get_administrators():
-        if isinstance(admin, ChatMember) and admin.user.id == user_id:
-            message.reply_text('Starting server')
-            os.system('systemctl start minecraft-server')
-            return
-    update.message.reply_text('Hi!')
+# context.
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /start is issued."""
+    user = update.effective_user
+    await update.message.reply_html(
+        rf"Hi {user.mention_html()}!",
+        reply_markup=ForceReply(selective=True),
+    )
 
-def stop(update: Update, context: CallbackContext) -> None:
-    message = update.message
-    assert isinstance(message, Message)
-    user_id = message.from_user.id
-    for admin in message.chat.get_administrators():
-        if isinstance(admin, ChatMember) and admin.user.id == user_id:
-            if context.bot_data.get('online_counter') == '0':
-                message.reply_text('Stopping server')
-                os.system('systemctl stop minecraft-server')
-            else:
-                message.reply_text('有人在游戏中')
-            return
-    message.reply_text('你不是管理员')
 
-def help_command(update: Update, _context: CallbackContext) -> None:
-    """Send a message when the command /help is issued."""
-    update.message.reply_text('我现在主要是在 Telegram 和 Minecraft 之间转发。')
+sad_kaomoji = [
+    '(。_。)',
+    '(。﹏。)',
+    '(；▽；)',
+    '(´•̥ ̯ •̥`)',
+];
 
-def list_players(update: Update, context: CallbackContext):
-    context.bot.send_message(CHAT, command('list'))
+async def show_error_title(bot: Bot, sleep_sec=4):
+    await bot.set_chat_title(CHAT, f'{TITLE} (???)')
+    await sleep(sleep_sec)
 
-def set_time(update: Update, context: CallbackContext):
-    error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
-                  '[详细请看这里](https://minecraft-zh.gamepedia.com/昼夜更替)。'
 
-    def when_error():
-        update.message.reply_text(error_reply, parse_mode=telegram.ParseMode.MARKDOWN_V2)
-
-    if len(context.args) != 1:
-        when_error()
-        return
-    arg: str = context.args[0].strip().lower()
-    if arg not in ('noon', 'day', 'night', 'midnight'):
+async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
+    prev_online_count = -1
+    while True:
+        await sleep(1)
+        try: 
+            online = await command('list')
+        except:
+            await show_error_title(context.bot)
+            prev_online_count = -1
+            continue
+        if not online:
+            continue
+        matched = re.search(r'\d+', online)
+        if not matched:
+            await sleep(4)
+            continue
+        online_count = matched.group(0)
+        if online_count == prev_online_count:
+            await sleep(2)
+            continue
+        prev_online_count = online_count
         try:
-            int(arg)
-        except ValueError:
-            when_error()
-            return
-    command("time set {}".format(arg))
+            if online_count == '0':
+                sad = '(没人玩)'
+                if random.random() < 0.4:
+                    random.shuffle(sad_kaomoji)
+                    sad = sad_kaomoji[0]
+                await context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip())
+            else:
+                await context.bot.set_chat_title(CHAT, f'{TITLE} ({online_count}人游戏中)')
+        except:
+            show_error_title(context.bot)
+            prev_online_count = -1
+            continue
 
 
-def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
-    """Echo the user message."""
+async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(await command('list'))
+
+async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message.chat_id != CHAT:
+        return
+    await command('whitelist off')
+    await update.message.reply_text('已关闭白名单，1分钟后再次开启')
+    await sleep(60)
+    await command('whitelist on')
+
+async def forward_to_minecraft(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
     if not message:
         return
@@ -107,8 +118,27 @@ def forward_to_minecraft(update: Update, _context: CallbackContext) -> None:
     name = sender.first_name
     if sender.last_name:
         name += ' ' + sender.last_name
-    command("say [Telegram][{}] {}".format(name, message.text))
+    await command(f"say [Telegram][{name}] {message.text}")
 
+
+async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
+                  '[详细请看这里](https://minecraft-zh.gamepedia.com/昼夜更替)。'
+
+    async def when_error():
+        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+
+    if len(context.args) != 1:
+        await when_error()
+        return
+    arg: str = context.args[0].strip().lower()
+    if arg not in ('noon', 'day', 'night', 'midnight'):
+        try:
+            int(arg)
+        except ValueError:
+            await when_error()
+            return
+    await command("time set {}".format(arg))
 
 
 def log_filter(log: str) -> bool:
@@ -153,7 +183,7 @@ def log_mapper(log: str) -> str:
     return log
 
 
-def log_sender(bot: telegram.Bot, log_file: TextIO):
+async def log_sender(bot: Bot, log_file: TextIO):
     # get new logs.
     logs = log_file.readlines()
     text = ""
@@ -163,91 +193,33 @@ def log_sender(bot: telegram.Bot, log_file: TextIO):
     if length < 3 or length > 1024:
         log_file.seek(0, SEEK_END)
         return
-    bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
+    await bot.send_message(CHAT, text, disable_web_page_preview=True, disable_notification=True)
 
 
 LOG_FILE_KEY = 'LOG_FILE'
 LOG_FILE_INO_KEY = 'LOG_FILE_INO'
 
 
-def log_watch(context: CallbackContext):
+async def log_watch(context: ContextTypes.DEFAULT_TYPE):
     log_stat = os.stat(LOG_FILE_PATH)
-    if context.bot_data.get(LOG_FILE_INO_KEY, None) != log_stat.st_ino \
-            or LOG_FILE_KEY not in context.bot_data \
-            or context.bot_data[LOG_FILE_KEY].closed:
-        log_file = open(LOG_FILE_PATH)
-        context.bot_data[LOG_FILE_KEY] = log_file
-        context.bot_data[LOG_FILE_INO_KEY] = log_stat.st_ino
-        log_file.seek(0, SEEK_END)
-        return
-    log_file: TextIO = context.bot_data[LOG_FILE_KEY]
-    log_sender(context.bot, log_file)
+    prev_log_ino = None
+    log_file = open(LOG_FILE_PATH)
 
+    while True:
+        log_stat = os.stat(LOG_FILE_PATH)
+        # when log file rotated or closed
+        if prev_log_ino != log_stat.st_ino or log_file.closed:
+            log_file = open(LOG_FILE_PATH)
+            prev_log_ino = log_stat.st_ino
+            log_file.seek(0, SEEK_END)
+        try:
+            await log_sender(context.bot, log_file)
+        except Exception as e:
+            show_error_title(context.bot)
+            logger.error("Error on sending logs", e)
+        await sleep(1)
 
-def spawn_log_watch(job_queue: JobQueue):
-    job_queue.run_repeating(log_watch, interval=1, first=0, name='log_watch')
-
-sad_kaomoji = [
-    '(。_。)',
-    '(。﹏。)',
-    '(；▽；)',
-    '(´•̥ ̯ •̥`)',
-];
-
-def cancel_shutdown(update: Update, context: CallbackContext):
-    os.system(f'shutdown -c')
-    context.bot.send_message(CHAT, "关机已取消")
-
-
-def auto_shutdown(context: CallbackContext):
-    DEATH_COUNT = 'DEATH_COUNT'
-    death_count = context.bot_data.get(DEATH_COUNT, 0)
-    wait_time_min = 5
-
-    online = command('list')
-    matched = re.search(r'\d+', online) 
-    current_online = int(matched.group(0))
-
-    if current_online > 0:
-        # someboy is playing, reset count.
-        death_count = 0
-    else:
-        # nobody playing.
-        death_count += 1
-
-    if death_count >= 60:
-        death_count = 0 # reset count.
-        context.bot.send_message(CHAT, f"过久没人在线，{wait_time_min}分钟后关闭服务器，若要游玩请重新打开。\n发送 /cancel_shutdown@{context.bot.username} 取消关机。")
-        os.system(f'shutdown -P +{wait_time_min}')
-
-    context.bot_data[DEATH_COUNT] = death_count
-
-
-def edit_group_name(context: CallbackContext):
-    try: 
-        online = command('list')
-    except:
-        context.bot.set_chat_title(CHAT, f'{TITLE} (服务器下线)', timeout=200)
-        return
-    if not online:
-        return
-    matched = re.search(r'\d+', online)
-    if not matched:
-        return
-    online_counter = matched.group(0)
-    if online_counter == context.bot_data.get('online_counter', '-1'):
-        return
-    context.bot_data['online_counter'] = online_counter
-    if online_counter == '0':
-        sad = '(没人玩)'
-        if random.random() < 0.4:
-            random.shuffle(sad_kaomoji)
-            sad = sad_kaomoji[0]
-        context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip(), timeout=200)
-    else:
-        context.bot.set_chat_title(CHAT, f'{TITLE} ({online_counter}人游戏中)', timeout=200)
-
-def status_update(update: Update, context: CallbackContext):
+async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_chat_title = update.message.new_chat_title
     if not new_chat_title:
         return
@@ -257,39 +229,33 @@ def status_update(update: Update, context: CallbackContext):
         return
     prev_id = context.chat_data[key]
     try:
-        context.bot.delete_message(CHAT, prev_id)
-    except telegram.error.BadRequest:
+        await context.bot.delete_message(CHAT, prev_id)
+    except error.BadRequest:
         pass
-    context.chat_data[key] = update.message.message_id
+    context.chat_data[key] = update.message.message_id    
 
-def main():
+def main() -> None:
     """Start the bot."""
-    updater = Updater(BOT_TOKEN, base_url=TELEGRAM_BOT_BASE_URL)
-    dispatcher = updater.dispatcher
+    # Create the Application and pass it your bot's token.
+    application = Application.builder().token(BOT_TOKEN).build()
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("stop", stop))
-    dispatcher.add_handler(CommandHandler("help", help_command))
-    dispatcher.add_handler(CommandHandler("list", list_players))
-    dispatcher.add_handler(CommandHandler("time", set_time))
-    dispatcher.add_handler(CommandHandler("cancel_shutdown", cancel_shutdown))
+    # on different commands - answer in Telegram
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("list", list_command))
+    application.add_handler(CommandHandler("allow", allow))
+    application.add_handler(CommandHandler("time", set_time))
 
-    dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_title, status_update))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, forward_to_minecraft))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_TITLE, status_update))
+    # on non command i.e message - echo the message on Telegram
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_minecraft))
 
-    dispatcher.job_queue.run_repeating(auto_shutdown, interval=60, first=0)
+    application.job_queue.run_once(log_watch, when=4, name='log_watch')
+
     if TITLE != "":
-        dispatcher.job_queue.run_repeating(edit_group_name, interval=10, first=0)
-    spawn_log_watch(dispatcher.job_queue)
-
-    updater.start_polling(drop_pending_updates=True)
-
-    updater.idle()
+        application.job_queue.run_once(edit_group_name, when=4)
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
-if __name__ == '__main__':
-    if "stopped" in sys.argv:
-        bot = Bot(BOT_TOKEN)
-        bot.set_chat_title(CHAT, f'{TITLE} (关闭)', timeout=200)
-    else:
-        main()
+if __name__ == "__main__":
+    main()

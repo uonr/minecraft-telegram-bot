@@ -7,6 +7,7 @@ import random
 from asyncio import sleep
 from typing import TextIO
 
+from httpx import AsyncClient
 from dotenv import load_dotenv
 from aiomcrcon import Client as RconClient
 from telegram import ForceReply, Update, Bot, error
@@ -20,6 +21,7 @@ LOG_FILE_PATH = os.environ["LOG_FILE_PATH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT = int(os.environ["CHAT_ID"])
 TITLE = os.environ.get('CHAT_TITLE', '')
+REMOTE_ONLINE_COUNT_ENDPOINT = os.environ.get('REMOTE_ONLINE_COUNT_ENDPOINT', None)
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "")
 
 # Enable logging
@@ -61,6 +63,18 @@ async def show_error_title(bot: Bot, sleep_sec=4):
     await sleep(sleep_sec)
 
 
+async def remote_online_count() -> int:
+    if not REMOTE_ONLINE_COUNT_ENDPOINT:
+        return 0
+    async with AsyncClient() as client:
+        resp = await client.get(REMOTE_ONLINE_COUNT_ENDPOINT)
+        if not resp.is_success:
+            return 0
+        try: 
+            return int(resp.text)
+        except ValueError:
+            return 0
+
 async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
     prev_online_count = -1
     while True:
@@ -77,13 +91,15 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
         if not matched:
             await sleep(4)
             continue
-        online_count = matched.group(0)
+        online_count = int(matched.group(0))
+        online_count_from_other_server = await remote_online_count()
+        online_count += online_count_from_other_server
         if online_count == prev_online_count:
             await sleep(2)
             continue
         prev_online_count = online_count
         try:
-            if online_count == '0':
+            if online_count == 0:
                 sad = '(没人玩)'
                 if random.random() < 0.4:
                     random.shuffle(sad_kaomoji)

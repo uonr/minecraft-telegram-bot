@@ -126,7 +126,11 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    local  = await command('list')
+    try:
+        local = await command('list')
+    except:
+        local = "DOWN"
+
     remote = await remote_online_list()
     await update.message.reply_text(
         f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + ','.join(remote),
@@ -136,7 +140,11 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message.chat_id != CHAT:
         return
-    await command('whitelist off')
+    try:
+        await command('whitelist off')
+    except:
+        await update.message.reply_text('白名单关闭失败, 可能服务器休眠中。')
+        return
     await update.message.reply_text('已关闭白名单，1分钟后再次开启')
     await sleep(60)
     await command('whitelist on')
@@ -151,7 +159,10 @@ async def forward_to_minecraft(update: Update, context: ContextTypes.DEFAULT_TYP
     name = sender.first_name
     if sender.last_name:
         name += ' ' + sender.last_name
-    await command(f"say [Telegram][{name}] {message.text}")
+    try:
+        await command(f"say [Telegram][{name}] {message.text}")
+    except:
+        return
 
 
 async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -171,7 +182,10 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             await when_error()
             return
-    await command("time set {}".format(arg))
+    try:
+        await command("time set {}".format(arg))
+    except:
+        update.message.reply_text('设置时间失败, 可能服务器休眠中。')
 
 
 def log_filter(log: str) -> bool:

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from io import SEEK_END
+import json
 import os
 import re
 import logging
 import random
 from asyncio import sleep
-from typing import TextIO
+from typing import List, TextIO
 
 from httpx import AsyncClient
 from dotenv import load_dotenv
@@ -21,7 +22,7 @@ LOG_FILE_PATH = os.environ["LOG_FILE_PATH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT = int(os.environ["CHAT_ID"])
 TITLE = os.environ.get('CHAT_TITLE', '')
-REMOTE_ONLINE_COUNT_ENDPOINT = os.environ.get('REMOTE_ONLINE_COUNT_ENDPOINT', None)
+REMOTE_ONLINE_LIST_ENDPOINT = os.environ.get('REMOTE_ONLINE_LIST_ENDPOINT', None)
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "")
 
 # Enable logging
@@ -63,17 +64,27 @@ async def show_error_title(bot: Bot, sleep_sec=4):
     await sleep(sleep_sec)
 
 
+async def remote_online_list() -> List[str]:
+    if not REMOTE_ONLINE_LIST_ENDPOINT:
+        return []
+    async with AsyncClient() as client:
+        resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
+        if not resp.is_success:
+            return []
+        try:
+            online_list = json.loads(resp.text)
+            return online_list
+        except ValueError:
+            return []
+
 async def remote_online_count() -> int:
-    if not REMOTE_ONLINE_COUNT_ENDPOINT:
+    if not REMOTE_ONLINE_LIST_ENDPOINT:
         return 0
     async with AsyncClient() as client:
-        resp = await client.get(REMOTE_ONLINE_COUNT_ENDPOINT)
+        resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
         if not resp.is_success:
             return 0
-        try: 
-            return int(resp.text)
-        except ValueError:
-            return 0
+        return len(await remote_online_list())
 
 async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
     prev_online_count = -1
@@ -114,7 +125,12 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(await command('list'))
+    local  = await command('list')
+    remote = await remote_online_list()
+    await update.message.reply_text(
+        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + ','.join(remote),
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
 
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message.chat_id != CHAT:

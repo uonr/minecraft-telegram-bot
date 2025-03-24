@@ -60,8 +60,7 @@ sad_kaomoji = [
 ];
 
 async def show_error_title(bot: Bot, sleep_sec=4):
-    remote_online_list = await remote_online_list()
-    await bot.set_chat_title(CHAT, f'{TITLE} (N/A, {len(remote_online_list)})')
+    await bot.set_chat_title(CHAT, f'{TITLE} (N/A, {len(await remote_online_list())})')
     await sleep(sleep_sec)
 
 
@@ -133,7 +132,7 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     remote = await remote_online_list()
     await update.message.reply_text(
-        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + ','.join(remote),
+        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + ', '.join(remote),
         parse_mode=ParseMode.MARKDOWN_V2
     )
 

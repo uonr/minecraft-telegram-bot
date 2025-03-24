@@ -60,7 +60,8 @@ sad_kaomoji = [
 ];
 
 async def show_error_title(bot: Bot, sleep_sec=4):
-    await bot.set_chat_title(CHAT, f'{TITLE} (???)')
+    remote_online_list = await remote_online_list()
+    await bot.set_chat_title(CHAT, f'{TITLE} (N/A, {len(remote_online_list)})')
     await sleep(sleep_sec)
 
 

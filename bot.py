@@ -105,8 +105,7 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
             online = await command('list')
             if online:
                 matched = re.search(r'\d+', online)
-                online_count = matched.group(0)
-                count["local"] = int(online_count)
+                count["local"] = int(matched.group(0))
         except Exception as e:
             pass
         online_count_from_other_server = await remote_online_count()
@@ -115,13 +114,14 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
         if prev_count == count and not first_time:
             continue
         first_time = False
-        prev_count = online_count
+        prev_count = count.copy()
         total_count = 0
         for value in count.values():
             if value != SLEEPING:
                 total_count += value
         try:
             if all(value == SLEEPING for value in count.values()):
+                logger.info('all sleeping')
                 await context.bot.set_chat_title(CHAT, f'{TITLE} (zzZ)')
             elif total_count == 0:
                 sad = '(没人玩)'
@@ -146,7 +146,7 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     remote = await remote_online_list()
     remote_count = ', '.join(remote) if remote else SLEEPING
     await update.message.reply_text(
-        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + remote_count,
+        f'[{TITLE}]\n\n' + local + '\n\n[Technofantasia]\n\n' + remote_count,
         parse_mode=ParseMode.MARKDOWN_V2
     )
 

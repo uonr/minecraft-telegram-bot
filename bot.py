@@ -25,6 +25,8 @@ TITLE = os.environ.get('CHAT_TITLE', '')
 REMOTE_ONLINE_LIST_ENDPOINT = os.environ.get('REMOTE_ONLINE_LIST_ENDPOINT', None)
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "")
 
+SLEEPING = 'zzZ'
+
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.WARN
@@ -60,67 +62,76 @@ sad_kaomoji = [
 ];
 
 async def show_error_title(bot: Bot, sleep_sec=4):
-    await bot.set_chat_title(CHAT, f'{TITLE} (N/A, {len(await remote_online_list())})')
+    remote_count = await remote_online_count()
+    remote_count_text = len(remote_count) if remote_count else 'zzZ'
+    await bot.set_chat_title(CHAT, f'{TITLE} (zzZ, {remote_count_text})')
     await sleep(sleep_sec)
 
 
-async def remote_online_list() -> List[str]:
+async def remote_online_list() -> List[str] | None:
     if not REMOTE_ONLINE_LIST_ENDPOINT:
-        return []
+        return None
     async with AsyncClient() as client:
-        resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
-        if not resp.is_success:
-            return []
-        try:
+        try: 
+            resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
+            if not resp.is_success:
+                return None
             online_list = json.loads(resp.text)
             return online_list
-        except ValueError:
-            return []
+        except:
+            return None
 
-async def remote_online_count() -> int:
+async def remote_online_count() -> int | None:
     if not REMOTE_ONLINE_LIST_ENDPOINT:
-        return 0
-    async with AsyncClient() as client:
-        resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
-        if not resp.is_success:
-            return 0
-        return len(await remote_online_list())
+        return None
+    list = await remote_online_list()
+    if not list:
+        return None
+    return len(list)
 
 async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
-    prev_online_count = -1
+    prev_count = {
+        "local": SLEEPING,
+        "remote": SLEEPING,
+    }
     while True:
-        await sleep(1)
+        await sleep(2)
+        count = {
+            "local": SLEEPING,
+            "remote": SLEEPING,
+        }
         try: 
             online = await command('list')
+            if online:
+                matched = re.search(r'\d+', online)
+                online_count = matched.group(0)
+                count["local"] = int(online_count)
+            online_count_from_other_server = await remote_online_count()
+            if online_count_from_other_server is not None:
+                count['remote'] = online_count_from_other_server
         except:
-            await show_error_title(context.bot)
-            prev_online_count = -1
+            pass
+        if prev_count == count:
             continue
-        if not online:
-            continue
-        matched = re.search(r'\d+', online)
-        if not matched:
-            await sleep(4)
-            continue
-        online_count = int(matched.group(0))
-        online_count_from_other_server = await remote_online_count()
-        online_count += online_count_from_other_server
-        if online_count == prev_online_count:
-            await sleep(2)
-            continue
-        prev_online_count = online_count
+        prev_count = online_count
+        total_count = 0
+        for value in count.values():
+            if value != SLEEPING:
+                total_count += value
         try:
-            if online_count == 0:
+            if all(value == SLEEPING for value in count.values()):
+                await context.bot.set_chat_title(CHAT, f'{TITLE} (zzZ)')
+            elif total_count == 0:
                 sad = '(没人玩)'
                 if random.random() < 0.4:
                     random.shuffle(sad_kaomoji)
                     sad = sad_kaomoji[0]
                 await context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip())
             else:
-                await context.bot.set_chat_title(CHAT, f'{TITLE} ({online_count}人游戏中)')
-        except:
-            show_error_title(context.bot)
-            prev_online_count = -1
+                online_text = ', '.join(map(str, count.values()))
+                await context.bot.set_chat_title(CHAT, f'{TITLE} ({online_text})')
+        except Exception as e:
+            logger.error(e)
             continue
 
 
@@ -128,11 +139,12 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         local = await command('list')
     except:
-        local = "DOWN"
+        local = SLEEPING
 
     remote = await remote_online_list()
+    remote_count = ', '.join(remote) if remote else SLEEPING
     await update.message.reply_text(
-        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + ', '.join(remote),
+        f'**{TITLE}:**\n\n' + local + '\n\n**Technofantasia:**\n' + remote_count,
         parse_mode=ParseMode.MARKDOWN_V2
     )
 

@@ -90,6 +90,7 @@ async def remote_online_count() -> int | None:
     return len(list)
 
 async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
+    first_time = True
     prev_count = {
         "local": SLEEPING,
         "remote": SLEEPING,
@@ -106,13 +107,14 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
                 matched = re.search(r'\d+', online)
                 online_count = matched.group(0)
                 count["local"] = int(online_count)
-            online_count_from_other_server = await remote_online_count()
-            if online_count_from_other_server is not None:
-                count['remote'] = online_count_from_other_server
         except Exception as e:
             logger.warning("Error on getting online count", e)
-        if prev_count == count:
+        online_count_from_other_server = await remote_online_count()
+        if online_count_from_other_server is not None:
+            count['remote'] = online_count_from_other_server
+        if prev_count == count and not first_time:
             continue
+        first_time = False
         prev_count = online_count
         total_count = 0
         for value in count.values():

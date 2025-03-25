@@ -63,7 +63,7 @@ sad_kaomoji = [
 
 async def show_error_title(bot: Bot, sleep_sec=4):
     remote_count = await remote_online_count()
-    remote_count_text = len(remote_count) if remote_count else 'zzZ'
+    remote_count_text = len(remote_count) if remote_count else SLEEPING
     await bot.set_chat_title(CHAT, f'{TITLE} (zzZ, {remote_count_text})')
     await sleep(sleep_sec)
 
@@ -100,7 +100,7 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
             "local": SLEEPING,
             "remote": SLEEPING,
         }
-        try: 
+        try:
             online = await command('list')
             if online:
                 matched = re.search(r'\d+', online)
@@ -109,8 +109,8 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
             online_count_from_other_server = await remote_online_count()
             if online_count_from_other_server is not None:
                 count['remote'] = online_count_from_other_server
-        except:
-            pass
+        except Exception as e:
+            logger.warning("Error on getting online count", e)
         if prev_count == count:
             continue
         prev_count = online_count

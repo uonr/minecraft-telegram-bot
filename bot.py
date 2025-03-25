@@ -147,7 +147,6 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     remote_count = ', '.join(remote) if remote else SLEEPING
     await update.message.reply_text(
         f'[{TITLE}]\n\n' + local + '\n\n[Technofantasia]\n\n' + remote_count,
-        parse_mode=ParseMode.MARKDOWN_V2
     )
 
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

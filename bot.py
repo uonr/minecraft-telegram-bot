@@ -236,7 +236,14 @@ def log_filter(log: str) -> bool:
         'moved too quickly',
         '[Telegram]',
         '[Hibernate]',
+        '[ChunkHolderManager]',
         'Skipping update ',
+        'Generating keypair',
+        'Using epoll channel type',
+        'Preparing level "world"',
+        'Running delayed init tasks',
+        'Starting remote control listener',
+        'This server is running Paper version',
     ]
     for s in skip_list:
         if log.find(s) != -1:

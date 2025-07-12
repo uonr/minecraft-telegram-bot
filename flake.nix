@@ -39,6 +39,8 @@
           propagatedBuildInputs = (pythonPackages pkgs.python3.pkgs);
           nativeBuildInputs = [ pkgs.pkg-config ];
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+          pyproject = true;
+          build-system = [ pkgs.python3Packages.setuptools ];
         };
 
         aio-mc-rcon = pkgs.python3Packages.buildPythonPackage rec {

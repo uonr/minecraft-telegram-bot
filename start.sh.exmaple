@@ -1,0 +1,9 @@
+#!/bin/bash
+
+export LOG_FILE_PATH=../mcserver/logs/latest.log
+export BOT_TOKEN=xxxxxxxxxxxx:xxxxxxxxxxxxxxx
+export CHAT_ID=-10000000
+export CHAT_TITLE=ChatTitle
+export RCON_PASSWORD=xxxxxxxxxx
+
+exec ./result/bin/minecraft-telegram-bot

@@ -96,7 +96,7 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
         "remote": SLEEPING,
     }
     while True:
-        await sleep(2)
+        await sleep(15)
         count = {
             "local": SLEEPING,
             "remote": SLEEPING,
@@ -130,7 +130,7 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
                     sad = sad_kaomoji[0]
                 await context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip())
             else:
-                online_text = ', '.join(map(str, count.values()))
+                online_text = str(count['local'])
                 await context.bot.set_chat_title(CHAT, f'{TITLE} ({online_text})')
         except Exception as e:
             logger.error(e)
@@ -146,20 +146,23 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     remote = await remote_online_list()
     remote_count = ', '.join(remote) if remote else SLEEPING
     await update.message.reply_text(
-        f'[{TITLE}]\n\n' + local + '\n\n[Technofantasia]\n\n' + remote_count,
+        f'[{TITLE}]\n\n' + local,
     )
 
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message.chat_id != CHAT:
+    error_reply = '请带上用户名`\n'
+
+    async def when_error():
+        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+
+    if len(context.args) != 1:
+        await when_error()
         return
+    arg: str = context.args[0].strip()
     try:
-        await command('whitelist off')
+        await command("whitelist add {}".format(arg))
     except:
-        await update.message.reply_text('白名单关闭失败, 可能服务器休眠中。')
-        return
-    await update.message.reply_text('已关闭白名单，1分钟后再次开启')
-    await sleep(60)
-    await command('whitelist on')
+        update.message.reply_text('设置白名单失败, 可能服务器休眠中。')
 
 async def forward_to_minecraft(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
@@ -199,17 +202,55 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         update.message.reply_text('设置时间失败, 可能服务器休眠中。')
 
+async def set_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    error_reply = '请带上参数，比如 `clear`、`rain`、`thunder`\n' \
+
+    async def when_error():
+        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+
+    if len(context.args) != 1:
+        await when_error()
+        return
+    arg: str = context.args[0].strip().lower()
+    if arg not in ('clear', 'rain', 'thunder'):
+        await when_error()
+        return
+    try:
+        await command("weather {}".format(arg))
+    except:
+        update.message.reply_text('设置天气失败, 可能服务器休眠中。')
+
+async def set_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    error_reply = '请带上参数，比如 `on`、`off`\n' \
+
+    async def when_error():
+        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+
+    if len(context.args) != 1:
+        await when_error()
+        return
+    arg: str = context.args[0].strip().lower()
+    if arg not in ('on', 'off'):
+        await when_error()
+        return
+    try:
+        await command("whitelist {}".format(arg))
+    except:
+        update.message.reply_text('设置白名单开关失败, 可能服务器休眠中。')
 
 def log_filter(log: str) -> bool:
     pass_list = [
         'has made the advancement',
         '[Async Chat Thread',
+        'For help, type "help"'
     ]
     found = lambda s: log.find(s) != -1
     for s in pass_list:
         if found(s):
             return True
     if not found("] [Server thread/INFO]"):
+        return False
+    if 'net.minecraft.server.MinecraftServer' not in log:
         return False
     skip_list = [
         'issued server command: /me',
@@ -227,7 +268,6 @@ def log_filter(log: str) -> bool:
         '[SpigotLibraryLoader]',
         'Preparing start',
         'Time elapsed:',
-        ' left the game',
         ' logged in with entity id',
         'lost connection',
         'RCON',
@@ -243,6 +283,7 @@ def log_filter(log: str) -> bool:
         'Preparing level "world"',
         'Running delayed init tasks',
         'Starting remote control listener',
+        '【YSM】',
         'This server is running Paper version',
     ]
     for s in skip_list:
@@ -255,9 +296,9 @@ HEAD_MATCH = re.compile(r"^\[\d+:\d+:\d+] \[[^]]+]:\s+")
 
 
 def log_mapper(log: str) -> str:
-    log = HEAD_MATCH.sub("", log)
-    log = IP_MATCH.sub("", log)
-    log = log.replace("[m", "")
+    if '/]: ' in log:
+        log = log.split('/]: ', 1)[1]
+    log = log.removeprefix('[Not Secure] ')
     return log
 
 
@@ -322,6 +363,8 @@ def main() -> None:
     application.add_handler(CommandHandler("list", list_command))
     application.add_handler(CommandHandler("allow", allow))
     application.add_handler(CommandHandler("time", set_time))
+    application.add_handler(CommandHandler("weather", set_weather))
+    application.add_handler(CommandHandler("whitelist", set_whitelist))
 
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_TITLE, status_update))
     # on non command i.e message - echo the message on Telegram

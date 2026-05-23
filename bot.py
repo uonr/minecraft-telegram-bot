@@ -6,6 +6,7 @@ import re
 import logging
 import random
 from asyncio import sleep
+from datetime import datetime, timezone, timedelta
 from typing import List, TextIO
 
 from httpx import AsyncClient
@@ -275,6 +276,7 @@ def log_filter(log: str) -> bool:
         "Can't keep up! Is the server overloaded?",
         'moved too quickly',
         '[Telegram]',
+        '[防沉迷温馨提示]',
         '[Hibernate]',
         '[ChunkHolderManager]',
         'Skipping update ',
@@ -353,6 +355,32 @@ async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     context.chat_data[key] = update.message.message_id    
 
+_last_alarm_minute_key = None
+
+
+async def addict_alarm(context: ContextTypes.DEFAULT_TYPE):
+    global _last_alarm_minute_key
+
+    target_times = [(2, 30), (3, 0), (3, 30), (4, 0), (4, 30)]
+
+    while True:
+        now = datetime.now(timezone(timedelta(hours=8)))
+        current_key = (now.toordinal(), now.hour, now.minute)
+
+        if (now.hour, now.minute) in target_times:
+            if _last_alarm_minute_key != current_key:
+                try:
+                    await command(
+                        f"say [防沉迷温馨提示] 现在是东八区{now.hour}点{now.minute}分，"
+                        f"已经是凌晨了，如果您居住在东八区、东九区，请注意健康喵~"
+                    )
+                    _last_alarm_minute_key = current_key
+                except Exception as e:
+                    logger.error(f"addict_alarm error: {e}")
+
+        await sleep(30)
+
+
 def main() -> None:
     """Start the bot."""
     # Create the Application and pass it your bot's token.
@@ -374,6 +402,7 @@ def main() -> None:
 
     if TITLE != "":
         application.job_queue.run_once(edit_group_name, when=4)
+    application.job_queue.run_once(addict_alarm, when=4)
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 

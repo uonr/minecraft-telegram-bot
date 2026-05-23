@@ -2,6 +2,9 @@ result
 .envrc
 config.toml
 start.sh
+.bashrc
+.inputrc
+.Xauthority
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

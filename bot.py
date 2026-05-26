@@ -303,13 +303,41 @@ def log_mapper(log: str) -> str:
     log = log.removeprefix('[Not Secure] ')
     return log
 
+async def process_log_cmd(line):
+    if '!' in line:
+        line = line.split('!', 1)[1]
+    args = line.split()
+    cmd = args[0]
+    args = args[1:]
+    if cmd == 'weather':
+        if len(args) == 1 and args[0] in ['clear', 'rain', 'thunder']:
+            try:
+                await command("weather {}".format(args[0]))
+            except:
+                pass
+    elif cmd == 'time':
+        if len(args) == 1:
+            if args[0] not in ['noon', 'day', 'night', 'midnight']:
+                try:
+                    val = int(args[0])
+                except:
+                    return
+            try:
+                await command("time set {}".format(args[0]))
+            except:
+                pass
 
 async def log_sender(bot: Bot, log_file: TextIO):
     # get new logs.
     logs = log_file.readlines()
     text = ""
     for log in filter(log_filter, logs):
-        text += log_mapper(log)
+        line = log_mapper(log)
+        try:
+           await process_log_cmd(line)
+        except Exception as e:
+            pass
+        text += line
     length = len(text)
     if length < 3 or length > 1024:
         log_file.seek(0, SEEK_END)

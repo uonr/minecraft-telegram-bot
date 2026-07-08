@@ -73,7 +73,7 @@ async def remote_online_list() -> List[str] | None:
     if not REMOTE_ONLINE_LIST_ENDPOINT:
         return None
     async with AsyncClient() as client:
-        try: 
+        try:
             resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
             if not resp.is_success:
                 return None
@@ -239,6 +239,14 @@ async def set_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         update.message.reply_text('设置白名单开关失败, 可能服务器休眠中。')
 
+
+async def clear_arrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await command("kill @e[type=arrow]")
+    except:
+        update.message.reply_text('清除箭矢失败, 可能服务器休眠中。')
+
+
 def log_filter(log: str) -> bool:
     pass_list = [
         'has made the advancement',
@@ -381,7 +389,7 @@ async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.delete_message(CHAT, prev_id)
     except error.BadRequest:
         pass
-    context.chat_data[key] = update.message.message_id    
+    context.chat_data[key] = update.message.message_id
 
 _last_alarm_minute_key = None
 
@@ -421,6 +429,7 @@ def main() -> None:
     application.add_handler(CommandHandler("time", set_time))
     application.add_handler(CommandHandler("weather", set_weather))
     application.add_handler(CommandHandler("whitelist", set_whitelist))
+    application.add_handler(CommandHandler("clear_arrow", clear_arrow))
 
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_TITLE, status_update))
     # on non command i.e message - echo the message on Telegram

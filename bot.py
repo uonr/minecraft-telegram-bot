@@ -397,7 +397,7 @@ _last_alarm_minute_key = None
 async def addict_alarm(context: ContextTypes.DEFAULT_TYPE):
     global _last_alarm_minute_key
 
-    target_times = [(2, 30), (3, 0), (3, 30), (4, 0), (4, 30)]
+    target_times = [(2, 0), (2, 30), (3, 0), (3, 30), (4, 0), (4, 30)]
 
     while True:
         now = datetime.now(timezone(timedelta(hours=8)))

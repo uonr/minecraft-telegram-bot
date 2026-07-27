@@ -312,6 +312,11 @@ async def process_log_cmd(line: str) -> None:
                 await command("time set {}".format(args[0]))
             except:
                 pass
+    elif cmd == 'clear_arrow':
+        try:
+            await command("kill @e[type=arrow]")
+        except:
+            pass
 
 async def log_sender(bot: Bot, log_file: TextIO) -> None:
     # get new logs.

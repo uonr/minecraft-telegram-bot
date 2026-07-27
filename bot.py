@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 from io import SEEK_END
-import json
 import os
 import re
 import logging
 import random
 from asyncio import sleep
 from datetime import datetime, timezone, timedelta
-from typing import List, TextIO
+from typing import TextIO
 
-from httpx import AsyncClient
 from dotenv import load_dotenv
 from aiomcrcon import Client as RconClient  # type: ignore[import-untyped]
 from telegram import ForceReply, Update, Bot, error
@@ -23,7 +21,6 @@ LOG_FILE_PATH = os.environ["LOG_FILE_PATH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT = int(os.environ["CHAT_ID"])
 TITLE = os.environ.get('CHAT_TITLE', '')
-REMOTE_ONLINE_LIST_ENDPOINT = os.environ.get('REMOTE_ONLINE_LIST_ENDPOINT', None)
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "")
 
 SLEEPING = 'zzZ'
@@ -65,77 +62,40 @@ sad_kaomoji = [
 ];
 
 async def show_error_title(bot: Bot, sleep_sec: int = 4) -> None:
-    remote_count = await remote_online_count()
-    remote_count_text = remote_count if remote_count else SLEEPING
-    await bot.set_chat_title(CHAT, f'{TITLE} (zzZ, {remote_count_text})')
+    await bot.set_chat_title(CHAT, f'{TITLE} (zzZ)')
     await sleep(sleep_sec)
 
 
-async def remote_online_list() -> List[str] | None:
-    if not REMOTE_ONLINE_LIST_ENDPOINT:
-        return None
-    async with AsyncClient() as client:
-        try:
-            resp = await client.get(REMOTE_ONLINE_LIST_ENDPOINT)
-            if not resp.is_success:
-                return None
-            online_list = json.loads(resp.text)
-            return online_list
-        except:
-            return None
-
-async def remote_online_count() -> int | None:
-    if not REMOTE_ONLINE_LIST_ENDPOINT:
-        return None
-    list = await remote_online_list()
-    if not list:
-        return None
-    return len(list)
-
 async def edit_group_name(context: ContextTypes.DEFAULT_TYPE) -> None:
     first_time = True
-    prev_count: dict[str, int | str] = {
-        "local": SLEEPING,
-        "remote": SLEEPING,
-    }
+    prev_count: int | str = SLEEPING
     while True:
         await sleep(15)
-        count: dict[str, int | str] = {
-            "local": SLEEPING,
-            "remote": SLEEPING,
-        }
+        count: int | str = SLEEPING
         try:
             online = await command('list')
             if online:
                 matched = re.search(r'\d+', online)
                 if matched:
-                    count["local"] = int(matched.group(0))
+                    count = int(matched.group(0))
         except Exception as e:
             pass
-        online_count_from_other_server = await remote_online_count()
-        if online_count_from_other_server is not None:
-            count['remote'] = online_count_from_other_server
         if prev_count == count and not first_time:
             continue
         first_time = False
-        prev_count = count.copy()
-        total_count = 0
-        for value in count.values():
-            if isinstance(value, int):
-                total_count += value
+        prev_count = count
         try:
-            if all(value == SLEEPING for value in count.values()):
+            if count == SLEEPING:
                 logger.info('all sleeping')
                 await context.bot.set_chat_title(CHAT, f'{TITLE} (zzZ)')
-            elif total_count == 0:
+            elif count == 0:
                 sad = '(没人玩)'
                 if random.random() < 0.4:
                     random.shuffle(sad_kaomoji)
                     sad = sad_kaomoji[0]
                 await context.bot.set_chat_title(CHAT, f'{TITLE} {sad}'.strip())
             else:
-                online_text = str(count['local'])
-                await context.bot.set_chat_title(CHAT, f'{TITLE} ({online_text})')
+                await context.bot.set_chat_title(CHAT, f'{TITLE} ({count})')
         except Exception as e:
             logger.error(e)
             continue
@@ -150,8 +110,6 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     message = update.message
     if message is None:
         return
-    remote = await remote_online_list()
-    remote_count = ', '.join(remote) if remote else SLEEPING
     await message.reply_text(
         f'[{TITLE}]\n\n' + local,
     )

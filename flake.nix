@@ -26,7 +26,6 @@
               python-telegram-bot
               python-dotenv
               black
-              httpx
               aio-mc-rcon
             ]
             ++ python-telegram-bot.optional-dependencies.job-queue

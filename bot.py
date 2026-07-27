@@ -11,7 +11,7 @@ from typing import List, TextIO
 
 from httpx import AsyncClient
 from dotenv import load_dotenv
-from aiomcrcon import Client as RconClient
+from aiomcrcon import Client as RconClient  # type: ignore[import-untyped]
 from telegram import ForceReply, Update, Bot, error
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, JobQueue, filters
@@ -37,7 +37,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-async def command(cmd: str):
+async def command(cmd: str) -> str:
     rcon = RconClient("127.0.0.1", 25575, RCON_PASSWORD)
     await rcon.connect()
     resp, _ = await rcon.send_cmd(cmd)
@@ -49,11 +49,13 @@ async def command(cmd: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
-    await update.message.reply_html(
+    message = update.message
+    if user is None or message is None:
+        return
+    await message.reply_html(
         rf"Hi {user.mention_html()}!",
         reply_markup=ForceReply(selective=True),
     )
-
 
 sad_kaomoji = [
     '(。_。)',
@@ -62,9 +64,9 @@ sad_kaomoji = [
     '(´•̥ ̯ •̥`)',
 ];
 
-async def show_error_title(bot: Bot, sleep_sec=4):
+async def show_error_title(bot: Bot, sleep_sec: int = 4) -> None:
     remote_count = await remote_online_count()
-    remote_count_text = len(remote_count) if remote_count else SLEEPING
+    remote_count_text = remote_count if remote_count else SLEEPING
     await bot.set_chat_title(CHAT, f'{TITLE} (zzZ, {remote_count_text})')
     await sleep(sleep_sec)
 
@@ -90,15 +92,15 @@ async def remote_online_count() -> int | None:
         return None
     return len(list)
 
-async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
+async def edit_group_name(context: ContextTypes.DEFAULT_TYPE) -> None:
     first_time = True
-    prev_count = {
+    prev_count: dict[str, int | str] = {
         "local": SLEEPING,
         "remote": SLEEPING,
     }
     while True:
         await sleep(15)
-        count = {
+        count: dict[str, int | str] = {
             "local": SLEEPING,
             "remote": SLEEPING,
         }
@@ -106,7 +108,8 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
             online = await command('list')
             if online:
                 matched = re.search(r'\d+', online)
-                count["local"] = int(matched.group(0))
+                if matched:
+                    count["local"] = int(matched.group(0))
         except Exception as e:
             pass
         online_count_from_other_server = await remote_online_count()
@@ -118,7 +121,7 @@ async def edit_group_name(context: ContextTypes.DEFAULT_TYPE):
         prev_count = count.copy()
         total_count = 0
         for value in count.values():
-            if value != SLEEPING:
+            if isinstance(value, int):
                 total_count += value
         try:
             if all(value == SLEEPING for value in count.values()):
@@ -144,26 +147,32 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except:
         local = SLEEPING
 
+    message = update.message
+    if message is None:
+        return
     remote = await remote_online_list()
     remote_count = ', '.join(remote) if remote else SLEEPING
-    await update.message.reply_text(
+    await message.reply_text(
         f'[{TITLE}]\n\n' + local,
     )
 
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message is None:
+        return
     error_reply = '请带上用户名`\n'
 
-    async def when_error():
-        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+    async def when_error() -> None:
+        await message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
 
-    if len(context.args) != 1:
+    if context.args is None or len(context.args) != 1:
         await when_error()
         return
     arg: str = context.args[0].strip()
     try:
         await command("whitelist add {}".format(arg))
     except:
-        update.message.reply_text('设置白名单失败, 可能服务器休眠中。')
+        await message.reply_text('设置白名单失败, 可能服务器休眠中。')
 
 async def forward_to_minecraft(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
@@ -181,14 +190,17 @@ async def forward_to_minecraft(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
 
-async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message is None:
+        return
     error_reply = '请带上时间设置参数，比如 `0`, `noon`, `day`, `night`, `midnight`\n' \
                   '[详细请看这里](https://minecraft-zh.gamepedia.com/昼夜更替)。'
 
-    async def when_error():
-        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+    async def when_error() -> None:
+        await message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
 
-    if len(context.args) != 1:
+    if context.args is None or len(context.args) != 1:
         await when_error()
         return
     arg: str = context.args[0].strip().lower()
@@ -201,15 +213,18 @@ async def set_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await command("time set {}".format(arg))
     except:
-        update.message.reply_text('设置时间失败, 可能服务器休眠中。')
+        await message.reply_text('设置时间失败, 可能服务器休眠中。')
 
-async def set_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_weather(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message is None:
+        return
     error_reply = '请带上参数，比如 `clear`、`rain`、`thunder`\n' \
 
-    async def when_error():
-        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+    async def when_error() -> None:
+        await message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
 
-    if len(context.args) != 1:
+    if context.args is None or len(context.args) != 1:
         await when_error()
         return
     arg: str = context.args[0].strip().lower()
@@ -219,15 +234,18 @@ async def set_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await command("weather {}".format(arg))
     except:
-        update.message.reply_text('设置天气失败, 可能服务器休眠中。')
+        await message.reply_text('设置天气失败, 可能服务器休眠中。')
 
-async def set_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message is None:
+        return
     error_reply = '请带上参数，比如 `on`、`off`\n' \
 
-    async def when_error():
-        await update.message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
+    async def when_error() -> None:
+        await message.reply_text(error_reply, parse_mode=ParseMode.MARKDOWN_V2)
 
-    if len(context.args) != 1:
+    if context.args is None or len(context.args) != 1:
         await when_error()
         return
     arg: str = context.args[0].strip().lower()
@@ -237,14 +255,16 @@ async def set_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await command("whitelist {}".format(arg))
     except:
-        update.message.reply_text('设置白名单开关失败, 可能服务器休眠中。')
+        await message.reply_text('设置白名单开关失败, 可能服务器休眠中。')
 
 
-async def clear_arrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def clear_arrow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
     try:
         await command("kill @e[type=arrow]")
     except:
-        update.message.reply_text('清除箭矢失败, 可能服务器休眠中。')
+        if message is not None:
+            await message.reply_text('清除箭矢失败, 可能服务器休眠中。')
 
 
 def log_filter(log: str) -> bool:
@@ -311,7 +331,7 @@ def log_mapper(log: str) -> str:
     log = log.removeprefix('[Not Secure] ')
     return log
 
-async def process_log_cmd(line):
+async def process_log_cmd(line: str) -> None:
     if '!' in line:
         line = line.split('!', 1)[1]
     args = line.split()
@@ -335,7 +355,7 @@ async def process_log_cmd(line):
             except:
                 pass
 
-async def log_sender(bot: Bot, log_file: TextIO):
+async def log_sender(bot: Bot, log_file: TextIO) -> None:
     # get new logs.
     logs = log_file.readlines()
     text = ""
@@ -357,9 +377,9 @@ LOG_FILE_KEY = 'LOG_FILE'
 LOG_FILE_INO_KEY = 'LOG_FILE_INO'
 
 
-async def log_watch(context: ContextTypes.DEFAULT_TYPE):
+async def log_watch(context: ContextTypes.DEFAULT_TYPE) -> None:
     log_stat = os.stat(LOG_FILE_PATH)
-    prev_log_ino = None
+    prev_log_ino: int | None = None
     log_file = open(LOG_FILE_PATH)
 
     while True:
@@ -372,29 +392,34 @@ async def log_watch(context: ContextTypes.DEFAULT_TYPE):
         try:
             await log_sender(context.bot, log_file)
         except Exception as e:
-            show_error_title(context.bot)
+            await show_error_title(context.bot)
             logger.error("Error on sending logs", e)
         await sleep(1)
 
-async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    new_chat_title = update.message.new_chat_title
+async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message is None:
+        return
+    new_chat_title = message.new_chat_title
     if not new_chat_title:
+        return
+    if context.chat_data is None:
         return
     key = 'chat_title_status_id'
     if key not in context.chat_data:
-        context.chat_data[key] = update.message.message_id
+        context.chat_data[key] = message.message_id
         return
     prev_id = context.chat_data[key]
     try:
         await context.bot.delete_message(CHAT, prev_id)
     except error.BadRequest:
         pass
-    context.chat_data[key] = update.message.message_id
+    context.chat_data[key] = message.message_id
 
-_last_alarm_minute_key = None
+_last_alarm_minute_key: tuple[int, int, int] | None = None
 
 
-async def addict_alarm(context: ContextTypes.DEFAULT_TYPE):
+async def addict_alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
     global _last_alarm_minute_key
 
     target_times = [(2, 0), (2, 30), (3, 0), (3, 30), (4, 0), (4, 30)]
@@ -435,11 +460,13 @@ def main() -> None:
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_to_minecraft))
 
-    application.job_queue.run_once(log_watch, when=4, name='log_watch')
+    job_queue = application.job_queue
+    assert job_queue is not None
+    job_queue.run_once(log_watch, when=4, name='log_watch')
 
     if TITLE != "":
-        application.job_queue.run_once(edit_group_name, when=4)
-    application.job_queue.run_once(addict_alarm, when=4)
+        job_queue.run_once(edit_group_name, when=4)
+    job_queue.run_once(addict_alarm, when=4)
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
